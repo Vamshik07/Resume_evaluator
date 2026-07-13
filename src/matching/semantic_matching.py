@@ -39,17 +39,25 @@ class SemanticMatching:
             self.gemini_model = None
             self.gemini_enabled = False
 
-        # Initialize sentence transformer model
-        model_name = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+        # Model name config
+        self.model_name = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+        self.embedding_model = None
+    
+    def _load_model(self):
+        """Lazily load the sentence transformer model"""
         try:
-            self.embedding_model = SentenceTransformer(model_name)
-            logger.info(f"Loaded embedding model: {model_name}")
+            logger.info(f"Loading embedding model lazily: {self.model_name}...")
+            self.embedding_model = SentenceTransformer(self.model_name)
+            logger.info("Embedding model loaded successfully.")
         except Exception as e:
             logger.error(f"Error loading embedding model: {e}")
             self.embedding_model = None
     
     def generate_embeddings(self, texts: List[str]) -> np.ndarray:
         """Generate embeddings for a list of texts"""
+        if not self.embedding_model:
+            self._load_model()
+            
         if not self.embedding_model:
             logger.error("Embedding model not available")
             return np.array([])
