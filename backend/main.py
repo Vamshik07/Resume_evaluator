@@ -30,15 +30,23 @@ def convert_numpy_types(obj):
         return bool(obj)
     return obj
 
+print("=== BACKEND STARTING ===", flush=True)
+
 # Add project root to sys.path to fix src import issue
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import our modules
+print("Loading database module...", flush=True)
 from src.models.database import get_db, create_tables, JobDescription, Resume, ResumeEvaluation
+print("Loading resume parser module...", flush=True)
 from src.parsers.resume_parser import ResumeParser
+print("Loading job description parser module...", flush=True)
 from src.parsers.jd_parser import JobDescriptionParser
+print("Loading hard matching module...", flush=True)
 from src.matching.hard_matching import HardMatching
+print("Loading semantic matching module...", flush=True)
 from src.matching.semantic_matching import SemanticMatching
+print("Loading scoring engine module...", flush=True)
 from src.scoring.scoring_engine import ScoringEngine
 
 # Set up logging
@@ -46,6 +54,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
+print("Initializing FastAPI...", flush=True)
 app = FastAPI(
     title="Automated Resume Relevance Check System",
     description="AI-powered resume evaluation system for Innomatics Research Labs",
@@ -62,18 +71,26 @@ app.add_middleware(
 )
 
 # Initialize components
+print("Instantiating ResumeParser...", flush=True)
 resume_parser = ResumeParser()
+print("Instantiating JobDescriptionParser...", flush=True)
 jd_parser = JobDescriptionParser()
+print("Instantiating HardMatching...", flush=True)
 hard_matcher = HardMatching()
+print("Instantiating SemanticMatching...", flush=True)
 semantic_matcher = SemanticMatching()
+print("Instantiating ScoringEngine...", flush=True)
 scoring_engine = ScoringEngine()
 
 # Create database tables
+print("Creating database tables...", flush=True)
 create_tables()
+print("Database tables ready.", flush=True)
 
 # Ensure upload directory exists
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./data/uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+print("=== BACKEND INITIALIZED AND READY ===", flush=True)
 
 # ... (rest of your routes remain unchanged)
 
