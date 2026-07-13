@@ -1,12 +1,6 @@
-import fitz  # PyMuPDF
-import pdfplumber
-import docx2txt
-from docx import Document
 import re
 import json
 from typing import Dict, List, Optional, Any
-import spacy
-from spacy.matcher import Matcher
 import logging
 
 # Set up logging
@@ -15,17 +9,26 @@ logger = logging.getLogger(__name__)
 
 class ResumeParser:
     def __init__(self):
-        """Initialize the resume parser with spaCy model"""
+        """Initialize the resume parser (heavy deps loaded lazily)"""
+        self.nlp = None
+        self.matcher = None
+    
+    def _load_spacy(self):
+        """Lazily load spaCy model"""
+        if self.nlp is not None:
+            return
         try:
+            import spacy
+            from spacy.matcher import Matcher
             self.nlp = spacy.load("en_core_web_sm")
+            self.matcher = Matcher(self.nlp.vocab)
+            self._setup_patterns()
         except OSError:
             logger.warning("spaCy model not found. Please install with: python -m spacy download en_core_web_sm")
             self.nlp = None
-        
-        # Initialize matcher for pattern recognition
-        if self.nlp:
-            self.matcher = Matcher(self.nlp.vocab)
-            self._setup_patterns()
+        except Exception as e:
+            logger.warning(f"spaCy load failed: {e}")
+            self.nlp = None
     
     def _setup_patterns(self):
         """Set up spaCy patterns for entity recognition"""
@@ -56,6 +59,7 @@ class ResumeParser:
     def extract_text_from_pdf(self, file_path: str) -> str:
         """Extract text from PDF using PyMuPDF"""
         try:
+            import fitz
             doc = fitz.open(file_path)
             text = ""
             for page in doc:
@@ -66,6 +70,7 @@ class ResumeParser:
             logger.error(f"Error extracting text from PDF: {e}")
             # Fallback to pdfplumber
             try:
+                import pdfplumber
                 with pdfplumber.open(file_path) as pdf:
                     text = ""
                     for page in pdf.pages:
@@ -79,6 +84,7 @@ class ResumeParser:
         """Extract text from DOCX file"""
         try:
             # Try with python-docx first
+            from docx import Document
             doc = Document(file_path)
             text = ""
             for paragraph in doc.paragraphs:
@@ -88,6 +94,7 @@ class ResumeParser:
             logger.error(f"Error with python-docx: {e}")
             # Fallback to docx2txt
             try:
+                import docx2txt
                 return docx2txt.process(file_path)
             except Exception as e2:
                 logger.error(f"Error with docx2txt fallback: {e2}")

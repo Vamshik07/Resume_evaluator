@@ -1,7 +1,6 @@
 import re
 import json
 from typing import Dict, List, Optional, Any
-import spacy
 import logging
 
 # Set up logging
@@ -10,11 +9,21 @@ logger = logging.getLogger(__name__)
 
 class JobDescriptionParser:
     def __init__(self):
-        """Initialize the job description parser with spaCy model"""
+        """Initialize the job description parser (spaCy loaded lazily)"""
+        self.nlp = None
+    
+    def _load_spacy(self):
+        """Lazily load spaCy model"""
+        if self.nlp is not None:
+            return
         try:
+            import spacy
             self.nlp = spacy.load("en_core_web_sm")
         except OSError:
             logger.warning("spaCy model not found. Please install with: python -m spacy download en_core_web_sm")
+            self.nlp = None
+        except Exception as e:
+            logger.warning(f"spaCy load failed: {e}")
             self.nlp = None
     
     def clean_text(self, text: str) -> str:

@@ -1,8 +1,5 @@
 import re
 from typing import Dict, List, Tuple, Any
-from fuzzywuzzy import fuzz, process
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 import logging
 
 # Set up logging
@@ -11,13 +8,20 @@ logger = logging.getLogger(__name__)
 
 class HardMatching:
     def __init__(self):
-        """Initialize hard matching with TF-IDF vectorizer"""
-        self.tfidf_vectorizer = TfidfVectorizer(
-            max_features=1000,
-            stop_words='english',
-            ngram_range=(1, 2),
-            lowercase=True
-        )
+        """Initialize hard matching (heavy deps loaded lazily)"""
+        self.tfidf_vectorizer = None
+    
+    def _get_tfidf(self):
+        """Lazily create TF-IDF vectorizer"""
+        if self.tfidf_vectorizer is None:
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            self.tfidf_vectorizer = TfidfVectorizer(
+                max_features=1000,
+                stop_words='english',
+                ngram_range=(1, 2),
+                lowercase=True
+            )
+        return self.tfidf_vectorizer
     
     def exact_keyword_match(self, resume_skills: List[str], jd_skills: List[str]) -> Dict[str, Any]:
         """Perform exact keyword matching between resume and job description skills"""
@@ -46,6 +50,7 @@ class HardMatching:
     
     def fuzzy_keyword_match(self, resume_skills: List[str], jd_skills: List[str], threshold: int = 80) -> Dict[str, Any]:
         """Perform fuzzy keyword matching with similarity threshold"""
+        from fuzzywuzzy import fuzz, process
         resume_skills_lower = [skill.lower() for skill in resume_skills]
         jd_skills_lower = [skill.lower() for skill in jd_skills]
         
@@ -228,6 +233,7 @@ class HardMatching:
     
     def certification_match(self, resume_certifications: List[str], jd_skills: List[str]) -> Dict[str, Any]:
         """Match certifications and professional qualifications"""
+        from fuzzywuzzy import fuzz
         certification_score = 0
         certification_matches = []
         missing_certifications = []
@@ -283,9 +289,10 @@ class HardMatching:
             texts = [resume_text, jd_text]
             
             # Fit and transform texts
-            tfidf_matrix = self.tfidf_vectorizer.fit_transform(texts)
+            tfidf_matrix = self._get_tfidf().fit_transform(texts)
             
             # Calculate cosine similarity
+            from sklearn.metrics.pairwise import cosine_similarity
             similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
             
             return float(similarity)
