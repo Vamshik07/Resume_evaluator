@@ -1,7 +1,6 @@
 import os
 import numpy as np
 from typing import Dict, List, Any, Optional
-from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import google.generativeai as genai
 import logging
@@ -47,10 +46,14 @@ class SemanticMatching:
         """Lazily load the sentence transformer model"""
         try:
             logger.info(f"Loading embedding model lazily: {self.model_name}...")
+            from sentence_transformers import SentenceTransformer
             self.embedding_model = SentenceTransformer(self.model_name)
             logger.info("Embedding model loaded successfully.")
         except Exception as e:
             logger.error(f"Error loading embedding model: {e}")
+            self.embedding_model = None
+        except BaseException as be:
+            logger.error(f"Critical error/MemoryError loading embedding model: {be}")
             self.embedding_model = None
     
     def generate_embeddings(self, texts: List[str]) -> np.ndarray:
