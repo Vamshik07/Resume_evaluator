@@ -171,6 +171,8 @@ async def upload_job_description(
             "parsed_data": parsed_jd
         }
         
+    except HTTPException as he:
+        raise he
     except Exception as e:
         logger.error(f"Error uploading job description: {e}")
         raise HTTPException(status_code=500, detail=f"Error processing job description: {str(e)}")
@@ -230,6 +232,8 @@ async def upload_resume(
             "parsed_data": parsed_resume
         }
         
+    except HTTPException as he:
+        raise he
     except Exception as e:
         logger.error(f"Error uploading resume: {e}")
         raise HTTPException(status_code=500, detail=f"Error processing resume: {str(e)}")
@@ -297,6 +301,8 @@ async def evaluate_resume(
             "analysis": analysis
         }
         
+    except HTTPException as he:
+        raise he
     except Exception as e:
         logger.error(f"Error evaluating resume: {e}")
         raise HTTPException(status_code=500, detail=f"Error evaluating resume: {str(e)}")

@@ -187,7 +187,14 @@ def make_api_request(endpoint, method="GET", data=None, files=None):
         if response.status_code == 200:
             return response.json()
         else:
-            st.error(f"API Error: {response.status_code} - {response.text}")
+            # Check for specific Resume not found error (due to ephemeral server resets)
+            if "Resume not found" in response.text:
+                st.error("⚠️ Your uploaded resume was not found on the server. The server may have restarted or database was reset. Please upload your resume again.")
+                if 'student_resume_id' in st.session_state:
+                    del st.session_state.student_resume_id
+                st.rerun()
+            else:
+                st.error(f"API Error: {response.status_code} - {response.text}")
             return None
     except requests.exceptions.ConnectionError:
         st.error("Could not connect to API. Please ensure the backend server is running.")
@@ -767,7 +774,14 @@ def show_student_workflow():
                     st.session_state.student_resume_id = result.get("resume_id")
                     st.rerun()
     else:
-        st.success("✅ Resume uploaded! Ready to apply for jobs.")
+        col1, col2 = st.columns([5, 1])
+        with col1:
+            st.success("✅ Resume uploaded! Ready to apply for jobs.")
+        with col2:
+            if st.button("🔄 Re-upload", use_container_width=True):
+                if 'student_resume_id' in st.session_state:
+                    del st.session_state.student_resume_id
+                st.rerun()
     
     # Step 2: Browse and Apply for Jobs
     if 'student_resume_id' in st.session_state:
