@@ -41,6 +41,13 @@ class SemanticMatching:
         # Model name config
         self.model_name = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
         self.embedding_model = None
+        # Enable fast mode (bypass heavy local model and use TF-IDF fallback) if on Render free tier or explicitly forced
+        self.force_fast_mode = (
+            os.getenv("FORCE_FAST_MODE", "false").lower() == "true" or
+            os.getenv("RENDER", "false").lower() == "true"
+        )
+        if self.force_fast_mode:
+            logger.info("Fast mode enabled (skipping local sentence-transformers to save memory)")
     
     def _load_model(self):
         """Lazily load the sentence transformer model"""
@@ -58,6 +65,9 @@ class SemanticMatching:
     
     def generate_embeddings(self, texts: List[str]) -> np.ndarray:
         """Generate embeddings for a list of texts"""
+        if self.force_fast_mode:
+            return np.array([])
+            
         if not self.embedding_model:
             self._load_model()
             
@@ -79,7 +89,16 @@ class SemanticMatching:
             embeddings = self.generate_embeddings([resume_text, jd_text])
             
             if embeddings.size == 0:
-                return 0.0
+                logger.warning("Embedding model not available. Falling back to TF-IDF similarity.")
+                try:
+                    from sklearn.feature_extraction.text import TfidfVectorizer
+                    vectorizer = TfidfVectorizer(stop_words='english')
+                    tfidf = vectorizer.fit_transform([resume_text, jd_text])
+                    similarity = (tfidf * tfidf.T).toarray()[0, 1]
+                    return float(similarity)
+                except Exception as tfidf_err:
+                    logger.error(f"TF-IDF fallback failed: {tfidf_err}")
+                    return 0.0
             
             # Calculate cosine similarity
             similarity = cosine_similarity([embeddings[0]], [embeddings[1]])[0][0]
@@ -100,7 +119,48 @@ class SemanticMatching:
             embeddings = self.generate_embeddings(all_texts)
             
             if embeddings.size == 0:
-                return {"semantic_matches": [], "semantic_score": 0.0}
+                logger.warning("Embedding model not available. Falling back to fuzzy matching for skill extraction.")
+                try:
+                    from fuzzywuzzy import fuzz
+                    semantic_matches = []
+                    total_similarity = 0
+                    
+                    resume_words = [w.lower() for w in resume_text.split()]
+                    for jd_skill in jd_skills:
+                        jd_skill_lower = jd_skill.lower()
+                        best_ratio = 0
+                        matched_word = ""
+                        
+                        # Find best matching word/phrase
+                        for word in resume_words:
+                            ratio = fuzz.ratio(jd_skill_lower, word)
+                            if ratio > best_ratio:
+                                best_ratio = ratio
+                                matched_word = word
+                        
+                        if jd_skill_lower in resume_text.lower():
+                            best_ratio = 100
+                            matched_word = jd_skill
+                            
+                        sim_score = best_ratio / 100.0
+                        if sim_score > 0.5:
+                            semantic_matches.append({
+                                "jd_skill": jd_skill,
+                                "resume_context": f"Matched via fuzzy keyword check containing '{matched_word}' ({int(best_ratio)}% similarity)",
+                                "similarity_score": float(sim_score)
+                            })
+                            total_similarity += float(sim_score)
+                            
+                    semantic_score = float(total_similarity / len(jd_skills)) if jd_skills else 0.0
+                    return {
+                        "semantic_matches": semantic_matches,
+                        "semantic_score": semantic_score,
+                        "total_skills": len(jd_skills),
+                        "matched_skills": len(semantic_matches)
+                    }
+                except Exception as fuzzy_err:
+                    logger.error(f"Fuzzy match skill fallback failed: {fuzzy_err}")
+                    return {"semantic_matches": [], "semantic_score": 0.0}
             
             resume_embeddings = embeddings[:len(resume_sentences)]
             jd_skill_embeddings = embeddings[len(resume_sentences):]
